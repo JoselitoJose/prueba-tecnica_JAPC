@@ -1,0 +1,250 @@
+# README — Seed JSON Madrid (Suelos contaminados + Aguas subterráneas)
+
+## 0) Propósito
+
+Dataset ficticio para:
+
+* Poblar una BD de estudios de suelos contaminados y aguas subterráneas.
+* Probar flujos de ingestión, consultas, dashboards y validaciones.
+* Simular campañas semestrales durante 5 años, con puntos en rejilla UTM (Madrid).
+
+## 1) Archivo
+
+Un único objeto JSON.
+
+Estructura de primer nivel:
+
+* `meta`
+* `campanas`
+* `analitos`
+* `lod_agua_ugL`, `loq_agua_ugL`
+* `lod_suelo_mgkg`, `loq_suelo_mgkg`
+* `litologia_catalogo`
+* `puntos`
+* `campo_parametros`
+* `mediciones_campo_por_punto`
+* `resultados_agua_ugL_por_punto`
+* `resultados_suelo_mgkg_por_punto`
+* `plumas`
+
+## 2) Coordenadas
+
+* Sistema: `ETRS89 / UTM 30N (EPSG:25830)`
+* Cada punto incluye:
+
+  * `utm_x`, `utm_y`, `epsg`
+  * `lat`, `lon` (derivadas)
+  * `z_abs_m` (cota ficticia)
+
+Rejilla: 10 puntos (2 filas × 5 columnas) en Madrid.
+
+## 3) Campañas (tiempo)
+
+* `campanas`: array de 10 fechas ISO (YYYY-MM-DD).
+* Periodicidad: semestral.
+* Total: 5 años (10 campañas).
+
+Convención:
+
+* Índice `i` de campaña = índice `i` en arrays temporales (campo y agua).
+
+## 4) Analitos y catálogo
+
+### 4.1 Listas principales
+
+* `analitos`: array de nombres de analitos.
+* Orden fijo. No reordenar si quieres consistencia.
+
+### 4.2 Límites (LOD/LOQ)
+
+* Agua:
+
+  * `lod_agua_ugL` y `loq_agua_ugL`
+* Suelo:
+
+  * `lod_suelo_mgkg` y `loq_suelo_mgkg`
+
+Regla:
+
+* `lod_*[k]` corresponde a `analitos[k]`.
+* `loq_*[k]` corresponde a `analitos[k]`.
+
+## 5) Puntos (geología e infraestructura)
+
+`puntos[]` contiene 10 objetos.
+
+Campos:
+
+* `codigo`: identificador del punto.
+* `riesgo`: etiqueta cualitativa:
+
+  * `bajo`
+  * `hidrocarburos`
+  * `clorados`
+* `sondeo`:
+
+  * `prof_m`: profundidad total.
+  * `litologia`: array de tramos `[desde_m, hasta_m, codigo_lito, permeabilidad]`
+* `piezometro`:
+
+  * `diam_entubado_mm`
+  * `filtro_m`: `[desde, hasta]`
+  * `nivel_inicial_m_bgl`: metros bajo cota terreno (bgl).
+
+### 5.1 Litología
+
+`litologia_catalogo` define códigos:
+
+* `FILL`, `SAND`, `CLAY`, `GRAV`
+
+`sondeo.litologia` usa esos códigos.
+
+Interpretación:
+
+* Tramos secuenciales desde 0 a `prof_m`.
+* `permeabilidad` puede ser `null` en relleno.
+
+## 6) Datos de campo (piezometría + físico-químicos)
+
+### 6.1 Definición de parámetros
+
+`campo_parametros` define el orden de variables por medición.
+
+Orden actual:
+
+1. `nivel_m_bgl`
+2. `ph`
+3. `ec_uS_cm`
+4. `orp_mV`
+5. `do_mg_L`
+6. `temp_C`
+7. `pid_ppm`
+8. `caudal_L_s`
+9. `vol_L`
+
+### 6.2 Serie temporal por punto
+
+`mediciones_campo_por_punto`:
+
+* Clave = `codigo` del punto.
+* Valor = array de 10 mediciones (una por campaña).
+* Cada medición es un array numérico con el orden de `campo_parametros`.
+
+Ejemplo de lectura:
+
+* `mediciones_campo_por_punto["PM-UTM-02"][3][0]` = nivel (bgl) en 4ª campaña.
+* `mediciones_campo_por_punto["PM-UTM-02"][3][6]` = PID en 4ª campaña.
+
+Interpretación rápida:
+
+* `nivel_m_bgl` alto = nivel más profundo (más bajo el agua).
+* `pid_ppm` alto suele correlacionar con presencia de vapores/HC (ficticio).
+
+## 7) Resultados analíticos de AGUA (µg/L)
+
+`resultados_agua_ugL_por_punto`:
+
+* Clave = `codigo` del punto.
+* Valor = array de 10 campañas.
+* Cada campaña = array numérico de tamaño `len(analitos)`.
+
+Regla de indexación:
+
+* `resultados_agua_ugL_por_punto[punto][i][k]`
+
+  * `i` = campaña (0..9)
+  * `k` = analito (0..N-1)
+
+### 7.1 No Detectado (ND)
+
+Convención:
+
+* Valor `0.0` = ND (< LOD).
+* Para reportar ND con límite:
+
+  * usar `lod_agua_ugL[k]` como referencia.
+
+### 7.2 Lectura de patrones
+
+* Puntos con `riesgo="hidrocarburos"`:
+
+  * `BENZENO`, `TOLUENO`, `ETILBENCENO`, `XILENOS_TOTALES`, `MTBE`, `TPH_*` suelen tener valores > 0 en campañas tempranas.
+  * Tendencia ficticia: descenso desde 2022.
+* Punto con `riesgo="clorados"`:
+
+  * `TCE`, `PCE`, `CIS_1_2_DCE`, `VINIL_CLORURO` pueden aparecer > 0.
+
+## 8) Resultados analíticos de SUELO (mg/kg)
+
+`resultados_suelo_mgkg_por_punto`:
+
+* Clave = `codigo` del punto.
+* Valor = objeto con:
+
+  * `baseline`: array numérico `len(analitos)`
+  * `followup`: array numérico `len(analitos)` o `null`
+
+Convención de campañas:
+
+* `baseline`: muestreo inicial (sin fecha explícita; asumir primera campaña o fase 0).
+* `followup`: muestreo de seguimiento en puntos seleccionados (contaminación).
+
+ND:
+
+* `0.0` = ND (< LOD). Usar `lod_suelo_mgkg[k]`.
+
+## 9) Plumas (zonas de influencia)
+
+`plumas[]`:
+
+* `codigo`
+* `tipo`
+* `puntos_asociados` (lista de `codigo` de puntos)
+* `geojson` (polígono ficticio)
+* `nota`
+
+Uso:
+
+* Visualización en mapa.
+* Agrupar puntos por incidencia.
+
+## 10) Validaciones mínimas recomendadas
+
+* `len(campanas) == 10`
+* Para cada punto:
+
+  * `len(mediciones_campo_por_punto[punto]) == len(campanas)`
+  * `len(resultados_agua_ugL_por_punto[punto]) == len(campanas)`
+  * `len(resultados_agua_ugL_por_punto[punto][i]) == len(analitos)`
+  * `len(resultados_suelo_mgkg_por_punto[punto]["baseline"]) == len(analitos)`
+  * Si `followup != null`: longitud == `len(analitos)`
+
+## 11) Cómo usar (pipeline típico)
+
+1. Cargar JSON.
+2. Crear tabla o catálogo de analitos usando `analitos` + LOD/LOQ.
+3. Insertar `puntos` y sus atributos (coordenadas + litología + piezómetro).
+4. Para cada punto:
+
+   * Insertar 10 `mediciones_campo` (campaign index → fecha).
+   * Insertar 10 `muestras_agua` (campaign index → fecha).
+   * Insertar 10 `resultados_agua`:
+
+     * Opción A: guardar array completo como JSON/array en una columna.
+     * Opción B: explotar a filas por analito (recomendado para SQL analítico).
+5. Insertar `muestras_suelo` (baseline + followup si aplica).
+6. Insertar `plumas` (opcional).
+
+## 12) Notas de interpretación
+
+* Dataset no incluye unidades por campo en cada fila: las unidades están implícitas por bloque:
+
+  * Agua: µg/L
+  * Suelo: mg/kg
+* `0.0` no es “cero real”. Es ND.
+* Coordenadas y elevaciones son ficticias pero coherentes.
+* Las tendencias (descensos a partir de 2022) están forzadas para demo.
+
+## 13) Limitación clave (normativa)
+
+El listado `analitos` es orientativo y no garantiza exhaustividad normativa. Sustituir por el catálogo regulatorio real del producto/cliente antes de usar para validación legal.
