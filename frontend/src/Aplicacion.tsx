@@ -168,10 +168,9 @@ export default function Aplicacion() {
     <div className="app">
       <header className="header">
         <div>
-          <p className="eyebrow">Dashboard Ambiental</p>
-          <h1>Monitoreo de muestras</h1>
+          <h1>Monitoreo de muestras.</h1>
           <p className="subtitle">
-            Visualiza condiciones ambientales y comparte vistas filtradas.
+              Observabilidad de condiciones ambientales.
           </p>
         </div>
         <div className="header-summary">
